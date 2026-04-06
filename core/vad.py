@@ -87,8 +87,9 @@ def detect_speech_windows(
         from silero_vad import get_speech_timestamps, load_silero_vad
 
         model = load_silero_vad()
+        vad_audio = np.array(audio, dtype=np.float32, copy=True)
         timestamps = get_speech_timestamps(
-            audio,
+            vad_audio,
             model,
             sampling_rate=sample_rate,
             threshold=threshold,

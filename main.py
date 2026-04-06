@@ -194,7 +194,7 @@ def main() -> int:
         print("Error: unable to prepare ASR model.", file=sys.stderr)
         print(f"Detail: {exc}", file=sys.stderr)
         print(
-            "Tip: place a converted CTranslate2 model in the local model directory.",
+            "Tip: place either a CTranslate2 model or a Hugging Face Whisper checkpoint in the local model directory.",
             file=sys.stderr,
         )
         print(

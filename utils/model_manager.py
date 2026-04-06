@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import tempfile
@@ -9,6 +10,11 @@ REQUIRED_MODEL_FILES = (
     "model.bin",
     "config.json",
     "tokenizer.json",
+)
+
+HF_CONFIG_CANDIDATES = (
+    "config.json",
+    "config.hf.original.json",
 )
 
 TRANSFORMERS_WEIGHT_FILES = (
@@ -30,6 +36,11 @@ OPTIONAL_COPY_FILES = (
     "preprocessor_config.json",
 )
 
+TRANSFORMERS_SHARD_PATTERNS = (
+    "model-*-of-*.safetensors",
+    "pytorch_model-*-of-*.bin",
+)
+
 
 def is_valid_ct2_model_dir(model_dir: str | Path) -> bool:
     path = Path(model_dir).expanduser().resolve()
@@ -44,6 +55,40 @@ def has_transformers_checkpoint(model_dir: str | Path) -> bool:
     if not path.exists() or not path.is_dir():
         return False
     return any(path.joinpath(name).exists() for name in TRANSFORMERS_WEIGHT_FILES)
+
+
+def _read_json_dict(path: Path) -> dict | None:
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _resolve_hf_config(path: Path) -> tuple[Path | None, dict | None]:
+    for name in HF_CONFIG_CANDIDATES:
+        candidate = path.joinpath(name)
+        parsed = _read_json_dict(candidate)
+        if parsed is None:
+            continue
+        if parsed.get("model_type") == "whisper":
+            return candidate, parsed
+    return None, None
+
+
+def is_valid_hf_whisper_model_dir(model_dir: str | Path) -> bool:
+    path = Path(model_dir).expanduser().resolve()
+    if not path.exists() or not path.is_dir():
+        return False
+
+    has_weights = has_transformers_checkpoint(path)
+    if not has_weights:
+        return False
+
+    _cfg_path, cfg = _resolve_hf_config(path)
+    return cfg is not None
 
 
 def _download_snapshot(repo_id: str, target_dir: Path) -> None:
@@ -144,6 +189,34 @@ def _convert_transformers_to_ct2(
     logger.info("Model conversion finished at %s", model_dir)
 
 
+def _prune_large_transformers_artifacts(model_dir: Path, logger: logging.Logger) -> None:
+    removed: list[str] = []
+
+    for name in TRANSFORMERS_WEIGHT_FILES:
+        file_path = model_dir.joinpath(name)
+        if file_path.exists() and file_path.is_file():
+            file_path.unlink(missing_ok=True)
+            removed.append(file_path.name)
+
+    for pattern in TRANSFORMERS_SHARD_PATTERNS:
+        for shard in model_dir.glob(pattern):
+            if shard.is_file():
+                shard.unlink(missing_ok=True)
+                removed.append(shard.name)
+
+    # Remove stale runtime clones produced by previous transformer backend runs.
+    for pattern in ("hf_runtime_*", "tmp_hf_source*", "tmp_ct2_test*"):
+        for sibling in model_dir.parent.glob(pattern):
+            if sibling == model_dir:
+                continue
+            if sibling.exists() and sibling.is_dir():
+                shutil.rmtree(sibling, ignore_errors=True)
+                removed.append(sibling.name)
+
+    if removed:
+        logger.info("Pruned large model artifacts: %s", sorted(set(removed)))
+
+
 def ensure_model_available(
     model_dir: str,
     primary_repo_id: str | None,
@@ -164,11 +237,27 @@ def ensure_model_available(
     if is_valid_ct2_model_dir(path):
         return path
 
+    if is_valid_hf_whisper_model_dir(path):
+        try:
+            log.info("Converting local Hugging Face Whisper model to CTranslate2 at %s", path)
+            _convert_transformers_to_ct2(path, log, quantization=quantization)
+            if is_valid_ct2_model_dir(path):
+                _prune_large_transformers_artifacts(path, log)
+                return path
+        except Exception as exc:
+            log.warning(
+                "Local Hugging Face model conversion failed; using transformers checkpoint directly: %s",
+                exc,
+            )
+        log.info("Using local Hugging Face Whisper model at %s", path)
+        return path
+
     if has_transformers_checkpoint(path):
         try:
             log.info("Converting existing Transformers checkpoint to CTranslate2 at %s", path)
             _convert_transformers_to_ct2(path, log, quantization=quantization)
             if is_valid_ct2_model_dir(path):
+                _prune_large_transformers_artifacts(path, log)
                 return path
         except Exception as exc:
             log.warning("Local model conversion attempt failed: %s", exc)
@@ -184,7 +273,7 @@ def ensure_model_available(
     if not auto_download:
         raise FileNotFoundError(
             "Model directory not found or incomplete. "
-            f"Expected CTranslate2 files in: {path}"
+            f"Expected either a CTranslate2 model or a Hugging Face Whisper checkpoint at: {path}"
         )
 
     path.mkdir(parents=True, exist_ok=True)
@@ -209,6 +298,10 @@ def ensure_model_available(
                 log.info("Model ready at %s", path)
                 return path
 
+            if is_valid_hf_whisper_model_dir(path):
+                log.info("Hugging Face Whisper model ready at %s", path)
+                return path
+
             if has_transformers_checkpoint(path):
                 log.info(
                     "Downloaded Transformers checkpoint from %s. Converting to CTranslate2...",
@@ -216,6 +309,7 @@ def ensure_model_available(
                 )
                 _convert_transformers_to_ct2(path, log, quantization=quantization)
                 if is_valid_ct2_model_dir(path):
+                    _prune_large_transformers_artifacts(path, log)
                     log.info("Model converted and ready at %s", path)
                     return path
 

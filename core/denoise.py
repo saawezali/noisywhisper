@@ -77,7 +77,9 @@ def denoise_audio(
             import torch
 
             model, df_state, _ = init_df()
-            tensor_audio = torch.from_numpy(audio).float().unsqueeze(0)
+            # Create a writable copy to avoid torch warnings on read-only buffers.
+            writable_audio = np.array(audio, dtype=np.float32, copy=True)
+            tensor_audio = torch.from_numpy(writable_audio).float().unsqueeze(0)
             enhanced = enhance(model, df_state, tensor_audio)
             if hasattr(enhanced, "cpu"):
                 enhanced = enhanced.cpu().numpy()
