@@ -84,9 +84,6 @@ def _convert_transformers_to_ct2(
     converter = TransformersConverter(str(model_dir))
 
     with tempfile.TemporaryDirectory(prefix="ct2_convert_", dir=str(model_dir.parent)) as tmp:
-        output_dir = Path(tmp).joinpath("ct2_model")
-        output_dir.mkdir(parents=True, exist_ok=True)
-
         conversion_attempts = [
             {
                 "quantization": quantization,
@@ -111,11 +108,15 @@ def _convert_transformers_to_ct2(
         ]
 
         last_error: Exception | None = None
-        converted = False
-        for kwargs in conversion_attempts:
+        converted_output_dir: Path | None = None
+        for attempt_idx, kwargs in enumerate(conversion_attempts, start=1):
+            output_dir = Path(tmp).joinpath(f"ct2_model_{attempt_idx}")
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+
             try:
                 converter.convert(str(output_dir), **kwargs)
-                converted = True
+                converted_output_dir = output_dir
                 break
             except TypeError as exc:
                 last_error = exc
@@ -124,14 +125,14 @@ def _convert_transformers_to_ct2(
                 last_error = exc
                 break
 
-        if not converted:
+        if converted_output_dir is None:
             raise RuntimeError(
                 f"CTranslate2 conversion failed: {last_error or 'unknown error'}"
             )
 
-        _copy_optional_files(model_dir, output_dir)
+        _copy_optional_files(model_dir, converted_output_dir)
 
-        for item in output_dir.iterdir():
+        for item in converted_output_dir.iterdir():
             dst = model_dir.joinpath(item.name)
             if item.is_dir():
                 if dst.exists():
