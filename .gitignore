@@ -21,6 +21,6 @@ dist/
 .DS_Store
 .vscode/*.code-workspace
 
-.flac
-.wav
-.mp3
+*.flac
+*.wav
+*.mp3
