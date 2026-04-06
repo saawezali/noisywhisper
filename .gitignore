@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+
+# Local runtime artifacts
+outputs/
+models/
+noisywhisper.log
+config.ini
+
+# Build artifacts
+build/
+dist/
+
+# OS/editor
+.DS_Store
+.vscode/*.code-workspace
+
+.flac
+.wav
+.mp3
