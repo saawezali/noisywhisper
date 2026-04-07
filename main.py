@@ -8,17 +8,6 @@ import traceback
 from ctypes import windll
 from pathlib import Path
 
-from core.worker import PipelineSettings, TranscriptionPipeline
-from output.docx_writer import write_docx
-from output.json_writer import write_json
-from output.pdf_writer import write_pdf
-from output.srt_writer import write_srt
-from output.txt_writer import write_txt
-from utils.config import load_config
-from utils.logger import setup_logger
-from utils.model_manager import ensure_model_available
-
-
 def _show_startup_error(message: str) -> None:
     try:
         # 0x10 = MB_ICONERROR
@@ -153,6 +142,16 @@ def main() -> None:
         window.show()
         app.exec()
         return
+
+    from core.worker import PipelineSettings, TranscriptionPipeline
+    from output.docx_writer import write_docx
+    from output.json_writer import write_json
+    from output.pdf_writer import write_pdf
+    from output.srt_writer import write_srt
+    from output.txt_writer import write_txt
+    from utils.config import load_config
+    from utils.logger import setup_logger
+    from utils.model_manager import ensure_model_available
 
     config = load_config(args.config)
 
