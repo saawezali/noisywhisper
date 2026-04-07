@@ -1,26 +1,45 @@
-# Python
+# Python cache and bytecode
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.so
+*.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
 venv/
+env/
 
-# Local runtime artifacts
+# Build and packaging artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Runtime outputs
 outputs/
-models/
+*.log
 noisywhisper.log
 config.ini
 
-# Build artifacts
-build/
-dist/
+# Large model assets and local downloads
+models/
+turkish_whisper_for_noisy_datas/
+turkish_whisper_for_noisy_datas_ct2/
+*.safetensors
+*.bin
 
-# OS/editor
-.DS_Store
-.vscode/*.code-workspace
+# Hugging Face and torch caches
+.cache/
+.huggingface/
 
-*.flac
-*.wav
-*.mp3
+# Local sample media
+sample.mp3
