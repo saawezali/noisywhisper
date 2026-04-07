@@ -18,6 +18,7 @@ ProgressCallback = Callable[[str, int, str], None]
 @dataclass
 class PipelineSettings:
     model_path: str = "models/turkish-noisy-v1"
+    fallback_model_path: str | None = None
     beam_size: int = 5
     compute_type: str = "int8"
     denoise_enabled: bool = True
@@ -128,6 +129,11 @@ class TranscriptionPipeline:
             beam_size=self.settings.beam_size,
             language="tr",
             logger=self.logger,
+            fallback_model_dir=(
+                Path(self.settings.fallback_model_path).expanduser().resolve()
+                if self.settings.fallback_model_path
+                else None
+            ),
         )
 
         self._emit(progress_callback, "Transcribing", 40)

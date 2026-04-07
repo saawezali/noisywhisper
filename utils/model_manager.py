@@ -242,7 +242,6 @@ def ensure_model_available(
             log.info("Converting local Hugging Face Whisper model to CTranslate2 at %s", path)
             _convert_transformers_to_ct2(path, log, quantization=quantization)
             if is_valid_ct2_model_dir(path):
-                _prune_large_transformers_artifacts(path, log)
                 return path
         except Exception as exc:
             log.warning(
@@ -257,7 +256,6 @@ def ensure_model_available(
             log.info("Converting existing Transformers checkpoint to CTranslate2 at %s", path)
             _convert_transformers_to_ct2(path, log, quantization=quantization)
             if is_valid_ct2_model_dir(path):
-                _prune_large_transformers_artifacts(path, log)
                 return path
         except Exception as exc:
             log.warning("Local model conversion attempt failed: %s", exc)
@@ -309,7 +307,6 @@ def ensure_model_available(
                 )
                 _convert_transformers_to_ct2(path, log, quantization=quantization)
                 if is_valid_ct2_model_dir(path):
-                    _prune_large_transformers_artifacts(path, log)
                     log.info("Model converted and ready at %s", path)
                     return path
 
