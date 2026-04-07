@@ -59,7 +59,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    if args.gui:
+    launch_gui = args.gui or not args.file
+
+    if launch_gui:
         from PyQt6.QtWidgets import QApplication
 
         from ui.mainwindow import MainWindow
@@ -69,9 +71,6 @@ def main() -> None:
         window.show()
         app.exec()
         return
-
-    if not args.file:
-        raise SystemExit("--file is required in CLI mode (omit only when using --gui)")
 
     config = load_config(args.config)
 
