@@ -42,6 +42,7 @@ turkish_whisper_for_noisy_datas_ct2/
 # Hugging Face and torch caches
 .cache/
 .huggingface/
+_MEI*/
 
 # Local sample media
 sample.mp3
