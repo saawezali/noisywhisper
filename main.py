@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from ctypes import windll
 from pathlib import Path
 
 from core.worker import PipelineSettings, TranscriptionPipeline
@@ -12,6 +14,14 @@ from output.txt_writer import write_txt
 from utils.config import load_config
 from utils.logger import setup_logger
 from utils.model_manager import ensure_model_available
+
+
+def _show_startup_error(message: str) -> None:
+    try:
+        # 0x10 = MB_ICONERROR
+        windll.user32.MessageBoxW(0, message, "NoisyWhisper Startup Error", 0x10)
+    except Exception:
+        print(message)
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,9 +72,21 @@ def main() -> None:
     launch_gui = args.gui or not args.file
 
     if launch_gui:
-        from PyQt6.QtWidgets import QApplication
+        try:
+            from PyQt6.QtWidgets import QApplication
 
-        from ui.mainwindow import MainWindow
+            from ui.mainwindow import MainWindow
+        except Exception as exc:
+            hint = (
+                "NoisyWhisper could not load GUI runtime libraries.\n\n"
+                f"Details: {exc}\n\n"
+                "If this is a shared build, either:\n"
+                "1) Keep NoisyWhisper.exe with its full dist folder (_internal), or\n"
+                "2) Use the one-file build artifact.\n\n"
+                "Also ensure Microsoft Visual C++ Redistributable 2015-2022 (x64) is installed."
+            )
+            _show_startup_error(hint)
+            raise SystemExit(1)
 
         app = QApplication([])
         window = MainWindow()
