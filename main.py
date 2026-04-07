@@ -25,20 +25,31 @@ def _prepare_frozen_dll_paths() -> list[str]:
     if not base.exists():
         return added
 
-    candidates = [
-        base,
-        base / "PyQt6",
-        base / "PyQt6" / "Qt6" / "bin",
-        base / "PyQt6" / "Qt6" / "plugins",
-        base / "PyQt6" / "Qt6" / "plugins" / "platforms",
-    ]
-
+    qt_bin = base / "PyQt6" / "Qt6" / "bin"
     qt_plugins = base / "PyQt6" / "Qt6" / "plugins"
     qt_platforms = qt_plugins / "platforms"
+
+    # Order matters: prioritize Qt runtime directory before generic _MEIPASS root.
+    candidates = [
+        qt_bin,
+        qt_plugins,
+        qt_platforms,
+        base / "PyQt6",
+        base,
+    ]
+
     if qt_plugins.exists():
         os.environ["QT_PLUGIN_PATH"] = str(qt_plugins)
     if qt_platforms.exists():
         os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(qt_platforms)
+
+    # Load Qt-bundled ICU DLLs first to avoid accidental resolution to incompatible ICU copies.
+    if qt_bin.exists() and qt_bin.is_dir():
+        for icu_dll in sorted(qt_bin.glob("icu*.dll")):
+            try:
+                WinDLL(str(icu_dll))
+            except Exception:
+                pass
 
     for path in candidates:
         if not path.exists() or not path.is_dir():
