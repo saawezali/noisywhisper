@@ -16,7 +16,8 @@ from utils.model_manager import ensure_model_available
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="NoisyWhisper CLI")
-    parser.add_argument("--file", required=True, help="Input audio file path")
+    parser.add_argument("--gui", action="store_true", help="Launch desktop GUI")
+    parser.add_argument("--file", required=False, help="Input audio file path")
     parser.add_argument(
         "--format",
         nargs="+",
@@ -57,6 +58,21 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    if args.gui:
+        from PyQt6.QtWidgets import QApplication
+
+        from ui.mainwindow import MainWindow
+
+        app = QApplication([])
+        window = MainWindow()
+        window.show()
+        app.exec()
+        return
+
+    if not args.file:
+        raise SystemExit("--file is required in CLI mode (omit only when using --gui)")
+
     config = load_config(args.config)
 
     logger = setup_logger(
