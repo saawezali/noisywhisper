@@ -67,4 +67,5 @@ exe = EXE(
     upx=False,
     console=False,
     icon=icon,
+    runtime_tmpdir=".",
 )
