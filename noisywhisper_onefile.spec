@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 block_cipher = None
 
@@ -30,6 +30,8 @@ hiddenimports += collect_submodules("ctranslate2")
 hiddenimports += collect_submodules("silero_vad")
 hiddenimports += collect_submodules("onnxruntime")
 hiddenimports += collect_submodules("av")
+
+binaries += collect_dynamic_libs("PyQt6")
 
 datas += collect_data_files("tokenizers")
 datas += collect_data_files("huggingface_hub")

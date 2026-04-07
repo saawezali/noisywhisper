@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
+import traceback
 from ctypes import windll
 from pathlib import Path
 
@@ -22,6 +25,59 @@ def _show_startup_error(message: str) -> None:
         windll.user32.MessageBoxW(0, message, "NoisyWhisper Startup Error", 0x10)
     except Exception:
         print(message)
+
+
+def _prepare_frozen_dll_paths() -> list[str]:
+    added: list[str] = []
+    if not getattr(sys, "frozen", False):
+        return added
+
+    base = Path(getattr(sys, "_MEIPASS", "")).resolve()
+    if not base.exists():
+        return added
+
+    candidates = [
+        base,
+        base / "PyQt6",
+        base / "PyQt6" / "Qt6" / "bin",
+        base / "PyQt6" / "Qt6" / "plugins",
+        base / "PyQt6" / "Qt6" / "plugins" / "platforms",
+    ]
+
+    for path in candidates:
+        if not path.exists() or not path.is_dir():
+            continue
+        os.environ["PATH"] = str(path) + os.pathsep + os.environ.get("PATH", "")
+        try:
+            os.add_dll_directory(str(path))
+        except Exception:
+            pass
+        added.append(str(path))
+
+    return added
+
+
+def _write_startup_diagnostics(exc: Exception, added_dll_paths: list[str]) -> str | None:
+    try:
+        diag_file = Path(tempfile.gettempdir()) / "noisywhisper_startup_diag.txt"
+        lines = [
+            "NoisyWhisper startup diagnostics",
+            "=" * 36,
+            f"python={sys.version}",
+            f"frozen={getattr(sys, 'frozen', False)}",
+            f"_MEIPASS={getattr(sys, '_MEIPASS', '')}",
+            f"cwd={Path.cwd()}",
+            "",
+            "added_dll_paths:",
+            *[f"- {p}" for p in added_dll_paths],
+            "",
+            f"error={exc}",
+            traceback.format_exc(),
+        ]
+        diag_file.write_text("\n".join(lines), encoding="utf-8")
+        return str(diag_file)
+    except Exception:
+        return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -72,11 +128,14 @@ def main() -> None:
     launch_gui = args.gui or not args.file
 
     if launch_gui:
+        added_dll_paths = _prepare_frozen_dll_paths()
         try:
             from PyQt6.QtWidgets import QApplication
 
             from ui.mainwindow import MainWindow
         except Exception as exc:
+            diag_path = _write_startup_diagnostics(exc, added_dll_paths)
+            diag_hint = f"\n\nDiagnostics saved to:\n{diag_path}" if diag_path else ""
             hint = (
                 "NoisyWhisper could not load GUI runtime libraries.\n\n"
                 f"Details: {exc}\n\n"
@@ -84,6 +143,7 @@ def main() -> None:
                 "1) Keep NoisyWhisper.exe with its full dist folder (_internal), or\n"
                 "2) Use the one-file build artifact.\n\n"
                 "Also ensure Microsoft Visual C++ Redistributable 2015-2022 (x64) is installed."
+                f"{diag_hint}"
             )
             _show_startup_error(hint)
             raise SystemExit(1)

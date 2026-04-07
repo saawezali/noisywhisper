@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 block_cipher = None
 
@@ -32,6 +32,8 @@ hiddenimports += collect_submodules("ctranslate2")
 hiddenimports += collect_submodules("silero_vad")
 hiddenimports += collect_submodules("onnxruntime")
 hiddenimports += collect_submodules("av")
+
+binaries += collect_dynamic_libs("PyQt6")
 
 # Runtime-heavy dependencies can require data files.
 datas += collect_data_files("tokenizers")
