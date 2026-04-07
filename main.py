@@ -5,7 +5,7 @@ import os
 import sys
 import tempfile
 import traceback
-from ctypes import windll
+from ctypes import WinDLL, windll
 from pathlib import Path
 
 def _show_startup_error(message: str) -> None:
@@ -33,6 +33,13 @@ def _prepare_frozen_dll_paths() -> list[str]:
         base / "PyQt6" / "Qt6" / "plugins" / "platforms",
     ]
 
+    qt_plugins = base / "PyQt6" / "Qt6" / "plugins"
+    qt_platforms = qt_plugins / "platforms"
+    if qt_plugins.exists():
+        os.environ["QT_PLUGIN_PATH"] = str(qt_plugins)
+    if qt_platforms.exists():
+        os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(qt_platforms)
+
     for path in candidates:
         if not path.exists() or not path.is_dir():
             continue
@@ -46,7 +53,34 @@ def _prepare_frozen_dll_paths() -> list[str]:
     return added
 
 
-def _write_startup_diagnostics(exc: Exception, added_dll_paths: list[str]) -> str | None:
+def _probe_qt_runtime() -> list[str]:
+    results: list[str] = []
+    if not getattr(sys, "frozen", False):
+        return results
+
+    base = Path(getattr(sys, "_MEIPASS", "")).resolve()
+    dll_dir = base / "PyQt6" / "Qt6" / "bin"
+    required = ["Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Network.dll"]
+
+    for dll_name in required:
+        dll_path = dll_dir / dll_name
+        if not dll_path.exists():
+            results.append(f"missing:{dll_path}")
+            continue
+        try:
+            WinDLL(str(dll_path))
+            results.append(f"loaded:{dll_name}")
+        except OSError as exc:
+            results.append(f"failed:{dll_name}:{exc}")
+
+    return results
+
+
+def _write_startup_diagnostics(
+    exc: Exception,
+    added_dll_paths: list[str],
+    qt_probe: list[str],
+) -> str | None:
     try:
         diag_file = Path(tempfile.gettempdir()) / "noisywhisper_startup_diag.txt"
         lines = [
@@ -59,6 +93,12 @@ def _write_startup_diagnostics(exc: Exception, added_dll_paths: list[str]) -> st
             "",
             "added_dll_paths:",
             *[f"- {p}" for p in added_dll_paths],
+            "",
+            "qt_probe:",
+            *[f"- {p}" for p in qt_probe],
+            "",
+            f"QT_PLUGIN_PATH={os.environ.get('QT_PLUGIN_PATH', '')}",
+            f"QT_QPA_PLATFORM_PLUGIN_PATH={os.environ.get('QT_QPA_PLATFORM_PLUGIN_PATH', '')}",
             "",
             f"error={exc}",
             traceback.format_exc(),
@@ -118,12 +158,13 @@ def main() -> None:
 
     if launch_gui:
         added_dll_paths = _prepare_frozen_dll_paths()
+        qt_probe = _probe_qt_runtime()
         try:
             from PyQt6.QtWidgets import QApplication
 
             from ui.mainwindow import MainWindow
         except Exception as exc:
-            diag_path = _write_startup_diagnostics(exc, added_dll_paths)
+            diag_path = _write_startup_diagnostics(exc, added_dll_paths, qt_probe)
             diag_hint = f"\n\nDiagnostics saved to:\n{diag_path}" if diag_path else ""
             hint = (
                 "NoisyWhisper could not load GUI runtime libraries.\n\n"

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
@@ -23,6 +24,11 @@ elif ffmpeg_bin.exists():
 
 icon_path = project_root / "assets" / "icon.ico"
 icon = str(icon_path) if icon_path.exists() else None
+runtime_tmpdir = os.path.join(
+    os.environ.get("LOCALAPPDATA", str(project_root)),
+    "NoisyWhisper",
+    "runtime",
+)
 
 hiddenimports = []
 hiddenimports += collect_submodules("faster_whisper")
@@ -67,5 +73,5 @@ exe = EXE(
     upx=False,
     console=False,
     icon=icon,
-    runtime_tmpdir=".",
+    runtime_tmpdir=runtime_tmpdir,
 )
