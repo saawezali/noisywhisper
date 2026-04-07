@@ -39,6 +39,21 @@ binaries += collect_dynamic_libs("PyQt6")
 datas += collect_data_files("tokenizers")
 datas += collect_data_files("huggingface_hub")
 
+
+def _is_foreign_icu_binary(entry) -> bool:
+    try:
+        dest_name = str(entry[0]).replace("/", "\\").lower()
+        src_path = str(entry[1]).replace("/", "\\").lower()
+    except Exception:
+        return False
+
+    base = Path(dest_name).name
+    if not (base.startswith("icu") and base.endswith(".dll")):
+        return False
+
+    # Keep ICU DLLs only when sourced from Qt's own runtime directory.
+    return "\\pyqt6\\qt6\\bin\\" not in src_path
+
 a = Analysis(
     ["main.py"],
     pathex=[str(project_root)],
@@ -54,6 +69,7 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
+a.binaries = [b for b in a.binaries if not _is_foreign_icu_binary(b)]
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
