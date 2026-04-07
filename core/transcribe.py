@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -79,10 +80,45 @@ class TurkishWhisperTranscriber:
         if converted_model.exists():
             return converted_dir
 
+        try:
+            from ctranslate2.converters import TransformersConverter
+
+            converter = TransformersConverter(str(source_dir))
+            with tempfile.TemporaryDirectory(prefix="ct2_runtime_", dir=str(source_dir.parent)) as tmp:
+                output_dir = Path(tmp) / "model"
+                converter.convert(
+                    str(output_dir),
+                    quantization="int8",
+                    copy_files=[
+                        "tokenizer.json",
+                        "preprocessor_config.json",
+                        "tokenizer_config.json",
+                        "special_tokens_map.json",
+                    ],
+                    force=True,
+                )
+                if not (output_dir / "model.bin").exists():
+                    raise RuntimeError("Converter completed but model.bin is missing")
+
+                converted_dir.mkdir(parents=True, exist_ok=True)
+                for item in output_dir.iterdir():
+                    target = converted_dir / item.name
+                    if item.is_dir():
+                        if target.exists():
+                            shutil.rmtree(target)
+                        shutil.copytree(item, target)
+                    else:
+                        shutil.copy2(item, target)
+
+            if converted_model.exists():
+                return converted_dir
+        except Exception as inproc_exc:
+            self.logger.warning("In-process CTranslate2 conversion failed: %s", inproc_exc)
+
         converter = shutil.which("ct2-transformers-converter")
         if not converter:
             raise RuntimeError(
-                "ct2-transformers-converter was not found. Install ctranslate2/faster-whisper first."
+                "Unable to convert model to CTranslate2: both in-process and executable converter failed."
             )
 
         cmd = [
@@ -101,7 +137,12 @@ class TurkishWhisperTranscriber:
         ]
         if converted_dir.exists():
             cmd.append("--force")
-        subprocess.run(cmd, check=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            stderr = (proc.stderr or "").strip()
+            stdout = (proc.stdout or "").strip()
+            detail = stderr or stdout or "no converter output"
+            raise RuntimeError(f"ct2-transformers-converter failed: {detail}")
         if not converted_model.exists():
             raise RuntimeError(
                 f"Model conversion finished but model.bin was not created in {converted_dir}"

@@ -244,12 +244,14 @@ def ensure_model_available(
             if is_valid_ct2_model_dir(path):
                 return path
         except Exception as exc:
-            log.warning(
-                "Local Hugging Face model conversion failed; using transformers checkpoint directly: %s",
-                exc,
-            )
-        log.info("Using local Hugging Face Whisper model at %s", path)
-        return path
+            log.warning("Local Hugging Face model conversion failed: %s", exc)
+            if not auto_download:
+                raise RuntimeError(
+                    "Model is a Hugging Face checkpoint but conversion to CTranslate2 failed. "
+                    "Enable auto-download to use a fallback CTranslate2 model, or provide a pre-converted model. "
+                    f"Details: {exc}"
+                ) from exc
+            log.info("Will try fallback repository download because local conversion failed")
 
     if has_transformers_checkpoint(path):
         try:
@@ -259,6 +261,11 @@ def ensure_model_available(
                 return path
         except Exception as exc:
             log.warning("Local model conversion attempt failed: %s", exc)
+            if not auto_download:
+                raise RuntimeError(
+                    "Local Transformers checkpoint conversion to CTranslate2 failed and auto-download is disabled. "
+                    f"Details: {exc}"
+                ) from exc
 
     if path.exists() and path.is_dir():
         present = [p.name for p in path.iterdir() if p.is_file()]
@@ -297,8 +304,14 @@ def ensure_model_available(
                 return path
 
             if is_valid_hf_whisper_model_dir(path):
-                log.info("Hugging Face Whisper model ready at %s", path)
-                return path
+                log.info(
+                    "Downloaded Hugging Face Whisper checkpoint from %s. Converting to CTranslate2...",
+                    repo,
+                )
+                _convert_transformers_to_ct2(path, log, quantization=quantization)
+                if is_valid_ct2_model_dir(path):
+                    log.info("Model converted and ready at %s", path)
+                    return path
 
             if has_transformers_checkpoint(path):
                 log.info(
