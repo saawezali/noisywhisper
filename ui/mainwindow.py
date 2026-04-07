@@ -193,6 +193,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(export_grid)
 
         self.setCentralWidget(root)
+        self._apply_purple_theme()
 
         self.browse_button.clicked.connect(self._browse_file)
         self.transcribe_button.clicked.connect(self._start_transcription)
@@ -200,6 +201,71 @@ class MainWindow(QMainWindow):
         self.export_dir_button.clicked.connect(self._select_export_dir)
         self.export_button.clicked.connect(self._export_selected)
         self._apply_default_formats()
+
+    def _apply_purple_theme(self) -> None:
+        self.setStyleSheet(
+            """
+            QMainWindow, QWidget {
+                background-color: #1e152b;
+                color: #f3ecff;
+            }
+            QLabel {
+                color: #f3ecff;
+            }
+            QPushButton {
+                background-color: #7c3aed;
+                color: white;
+                border: 1px solid #8b5cf6;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #8b5cf6;
+            }
+            QPushButton:pressed {
+                background-color: #6d28d9;
+            }
+            QPushButton:disabled {
+                background-color: #4c1d95;
+                color: #c4b5fd;
+            }
+            QTextEdit {
+                background-color: #2a1f3b;
+                color: #f3ecff;
+                border: 1px solid #8b5cf6;
+                border-radius: 8px;
+            }
+            QProgressBar {
+                border: 1px solid #8b5cf6;
+                border-radius: 7px;
+                background: #2a1f3b;
+                color: #f3ecff;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #a78bfa;
+                border-radius: 6px;
+            }
+            QCheckBox {
+                color: #e9ddff;
+                spacing: 6px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border: 1px solid #a78bfa;
+                background: #2a1f3b;
+            }
+            QCheckBox::indicator:checked {
+                background: #8b5cf6;
+            }
+            """
+        )
+        self.drop_area.setStyleSheet(
+            "border: 2px dashed #a78bfa; border-radius: 8px; padding: 30px; color: #f3ecff;"
+        )
 
     def dragEnterEvent(self, event) -> None:  # type: ignore[override]
         if event.mimeData().hasUrls():

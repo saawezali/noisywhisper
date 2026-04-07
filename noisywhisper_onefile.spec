@@ -41,6 +41,7 @@ binaries += collect_dynamic_libs("PyQt6")
 
 datas += collect_data_files("tokenizers")
 datas += collect_data_files("huggingface_hub")
+datas += collect_data_files("faster_whisper")
 
 
 def _is_foreign_icu_binary(entry) -> bool:

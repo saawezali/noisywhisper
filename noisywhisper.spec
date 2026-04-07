@@ -38,6 +38,7 @@ binaries += collect_dynamic_libs("PyQt6")
 # Runtime-heavy dependencies can require data files.
 datas += collect_data_files("tokenizers")
 datas += collect_data_files("huggingface_hub")
+datas += collect_data_files("faster_whisper")
 
 
 def _is_foreign_icu_binary(entry) -> bool:
