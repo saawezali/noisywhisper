@@ -82,12 +82,40 @@ class TranscriptionPipeline:
         return False
 
     def _is_usable_segment_text(self, text: str) -> bool:
-        return self._is_meaningful_text(text) and not self._looks_like_gibberish(text)
+        return bool(self._sanitize_segment_text(text))
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:
         # Keep letters/digits across locales, excluding underscores.
         return re.findall(r"[^\W_]+", text.lower(), flags=re.UNICODE)
+
+    @staticmethod
+    def _collapse_long_runs(text: str) -> str:
+        # Reduce extreme character repetition while preserving normal words.
+        return re.sub(r"(.)\1{4,}", r"\1\1", text, flags=re.UNICODE)
+
+    def _sanitize_segment_text(self, text: str) -> str:
+        raw = self._collapse_long_runs(text.strip())
+        if not raw:
+            return ""
+
+        cleaned = re.sub(r"(?i)\b([a-zçğıöşü]{1,3})\1{6,}\b", " ", raw)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if not cleaned:
+            return ""
+
+        fragments = [frag.strip() for frag in re.split(r"[\n\r\.\!\?]+", cleaned) if frag.strip()]
+        kept: list[str] = []
+        for frag in fragments:
+            if self._is_meaningful_text(frag) and not self._looks_like_gibberish(frag):
+                kept.append(frag)
+
+        if kept:
+            return ". ".join(kept)
+
+        if self._is_meaningful_text(cleaned) and not self._looks_like_gibberish(cleaned):
+            return cleaned
+        return ""
 
     def _quality_score(self, segments: list[TranscriptSegment]) -> float:
         text = " ".join(seg.text.strip() for seg in segments if seg.text).strip()
@@ -184,7 +212,9 @@ class TranscriptionPipeline:
             )
 
             for segment in segments:
-                if self._is_usable_segment_text(segment.text):
+                sanitized = self._sanitize_segment_text(segment.text)
+                if sanitized:
+                    segment.text = sanitized
                     collected.append(segment)
                     self._emit(
                         progress_callback,
@@ -207,9 +237,11 @@ class TranscriptionPipeline:
                 condition_on_previous_text=False,
                 no_speech_threshold=0.95,
             )
-            collected.extend(
-                [seg for seg in retry_segments if self._is_usable_segment_text(seg.text)]
-            )
+            for seg in retry_segments:
+                sanitized = self._sanitize_segment_text(seg.text)
+                if sanitized:
+                    seg.text = sanitized
+                    collected.append(seg)
 
         if not collected and self.settings.denoise_enabled:
             self.logger.warning(
@@ -225,9 +257,11 @@ class TranscriptionPipeline:
                 condition_on_previous_text=False,
                 no_speech_threshold=0.95,
             )
-            collected.extend(
-                [seg for seg in retry_segments if self._is_usable_segment_text(seg.text)]
-            )
+            for seg in retry_segments:
+                sanitized = self._sanitize_segment_text(seg.text)
+                if sanitized:
+                    seg.text = sanitized
+                    collected.append(seg)
 
         if not collected:
             self.logger.warning(
@@ -244,9 +278,11 @@ class TranscriptionPipeline:
                 condition_on_previous_text=False,
                 no_speech_threshold=0.99,
             )
-            collected.extend(
-                [seg for seg in retry_segments if self._is_usable_segment_text(seg.text)]
-            )
+            for seg in retry_segments:
+                sanitized = self._sanitize_segment_text(seg.text)
+                if sanitized:
+                    seg.text = sanitized
+                    collected.append(seg)
 
         if collected and self.settings.denoise_enabled and self._is_low_quality(collected):
             current_score = self._quality_score(collected)
@@ -264,9 +300,13 @@ class TranscriptionPipeline:
                 condition_on_previous_text=False,
                 no_speech_threshold=0.99,
             )
-            quality_retry_segments = [
-                seg for seg in quality_retry_segments if self._is_usable_segment_text(seg.text)
-            ]
+            cleaned_quality_retry_segments: list[TranscriptSegment] = []
+            for seg in quality_retry_segments:
+                sanitized = self._sanitize_segment_text(seg.text)
+                if sanitized:
+                    seg.text = sanitized
+                    cleaned_quality_retry_segments.append(seg)
+            quality_retry_segments = cleaned_quality_retry_segments
 
             retry_score = self._quality_score(quality_retry_segments)
             if quality_retry_segments and retry_score > current_score:
