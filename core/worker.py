@@ -52,6 +52,38 @@ class TranscriptionPipeline:
             return False
         return any(ch.isalnum() for ch in value)
 
+    def _looks_like_gibberish(self, text: str) -> bool:
+        value = text.strip()
+        if not value:
+            return True
+
+        letters = [ch.lower() for ch in value if ch.isalpha()]
+        if len(letters) < 12:
+            return False
+
+        unique_chars = set(letters)
+        if len(unique_chars) <= 3:
+            return True
+
+        top_char_freq = max(letters.count(ch) for ch in unique_chars) / len(letters)
+        if len(letters) >= 40 and top_char_freq >= 0.55:
+            return True
+
+        tokens = self._tokenize(value)
+        if len(tokens) >= 8:
+            unique_tokens = set(tokens)
+            if len(unique_tokens) <= 2:
+                return True
+
+            top_token_ratio = Counter(tokens).most_common(1)[0][1] / len(tokens)
+            if top_token_ratio >= 0.6:
+                return True
+
+        return False
+
+    def _is_usable_segment_text(self, text: str) -> bool:
+        return self._is_meaningful_text(text) and not self._looks_like_gibberish(text)
+
     @staticmethod
     def _tokenize(text: str) -> list[str]:
         # Keep letters/digits across locales, excluding underscores.
@@ -152,7 +184,7 @@ class TranscriptionPipeline:
             )
 
             for segment in segments:
-                if self._is_meaningful_text(segment.text):
+                if self._is_usable_segment_text(segment.text):
                     collected.append(segment)
                     self._emit(
                         progress_callback,
@@ -176,7 +208,7 @@ class TranscriptionPipeline:
                 no_speech_threshold=0.95,
             )
             collected.extend(
-                [seg for seg in retry_segments if self._is_meaningful_text(seg.text)]
+                [seg for seg in retry_segments if self._is_usable_segment_text(seg.text)]
             )
 
         if not collected and self.settings.denoise_enabled:
@@ -194,7 +226,7 @@ class TranscriptionPipeline:
                 no_speech_threshold=0.95,
             )
             collected.extend(
-                [seg for seg in retry_segments if self._is_meaningful_text(seg.text)]
+                [seg for seg in retry_segments if self._is_usable_segment_text(seg.text)]
             )
 
         if not collected:
@@ -213,7 +245,7 @@ class TranscriptionPipeline:
                 no_speech_threshold=0.99,
             )
             collected.extend(
-                [seg for seg in retry_segments if self._is_meaningful_text(seg.text)]
+                [seg for seg in retry_segments if self._is_usable_segment_text(seg.text)]
             )
 
         if collected and self.settings.denoise_enabled and self._is_low_quality(collected):
@@ -233,7 +265,7 @@ class TranscriptionPipeline:
                 no_speech_threshold=0.99,
             )
             quality_retry_segments = [
-                seg for seg in quality_retry_segments if self._is_meaningful_text(seg.text)
+                seg for seg in quality_retry_segments if self._is_usable_segment_text(seg.text)
             ]
 
             retry_score = self._quality_score(quality_retry_segments)
