@@ -13,7 +13,7 @@ DEFAULT_CONFIG = {
         "model_path": "models/turkish-noisy-v1",
         "model_repo_id": "Cosmobillian/turkish_whisper_for_noisy_datas",
         "fallback_model_repo_id": "Systran/faster-whisper-large-v3",
-        "auto_download_model": "true",
+        "auto_download_model": "false",
     },
     "export": {
         "default_formats": "txt",

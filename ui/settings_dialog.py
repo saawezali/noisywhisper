@@ -73,6 +73,12 @@ class SettingsDialog(QDialog):
         model_row.addWidget(self.model_browse)
         form.addRow("Model Path", model_row)
 
+        self.auto_download_toggle = QCheckBox("Allow model download if local model is missing")
+        self.auto_download_toggle.setChecked(
+            config.getboolean("transcription", "auto_download_model", fallback=False)
+        )
+        form.addRow("Online Fallback", self.auto_download_toggle)
+
         self.export_dir = QLineEdit(config.get("export", "export_dir", fallback="outputs"))
         export_row = QHBoxLayout()
         export_row.addWidget(self.export_dir)
@@ -110,5 +116,10 @@ class SettingsDialog(QDialog):
         config.set("transcription", "compute_type", self.compute_combo.currentText())
         config.set("transcription", "vad_threshold", f"{self.vad_slider.value() / 100.0:.2f}")
         config.set("transcription", "model_path", self.model_path.text().strip())
+        config.set(
+            "transcription",
+            "auto_download_model",
+            "true" if self.auto_download_toggle.isChecked() else "false",
+        )
         config.set("export", "default_formats", self.default_formats.text().strip() or "txt")
         config.set("export", "export_dir", self.export_dir.text().strip() or "outputs")

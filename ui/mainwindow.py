@@ -70,7 +70,7 @@ class _TranscriptionTask(QObject):
                 fallback="Systran/faster-whisper-small",
             )
             auto_download = config.getboolean(
-                "transcription", "auto_download_model", fallback=True
+                "transcription", "auto_download_model", fallback=False
             )
 
             resolved_model = ensure_model_available(

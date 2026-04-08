@@ -154,6 +154,11 @@ def parse_args() -> argparse.Namespace:
         default="models/faster-whisper-small",
         help="Fallback local CTranslate2 model directory",
     )
+    parser.add_argument(
+        "--allow-model-download",
+        action="store_true",
+        help="Allow downloading model files from the internet when local model is missing",
+    )
     parser.add_argument("--no-model-download", action="store_true")
     parser.add_argument("--no-denoise", action="store_true")
     parser.add_argument("--vad-threshold", type=float, default=None)
@@ -236,7 +241,12 @@ def main() -> None:
         fallback="Systran/faster-whisper-small",
     )
     fallback_model_path = Path(args.fallback_model_path).expanduser().resolve()
-    auto_download = not args.no_model_download
+    configured_download = config.getboolean(
+        "transcription", "auto_download_model", fallback=False
+    )
+    auto_download = args.allow_model_download or configured_download
+    if args.no_model_download:
+        auto_download = False
 
     resolved_model_path = ensure_model_available(
         model_dir=model_path,
