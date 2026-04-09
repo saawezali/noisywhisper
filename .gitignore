@@ -1,0 +1,13 @@
+venv/
+.venv/
+python/
+models/*
+!models/.gitkeep
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.zip
+*.7z
+ffmpeg.exe
