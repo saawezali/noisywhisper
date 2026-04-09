@@ -4,6 +4,8 @@ import os
 import re
 import threading
 import time
+import tempfile
+import textwrap
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "0")
 
@@ -128,6 +130,104 @@ def strip_repetitions(text):
     return text
 
 
+def format_srt_timestamp(seconds):
+    if seconds < 0:
+        seconds = 0.0
+    total_ms = int(round(seconds * 1000))
+    hours = total_ms // 3600000
+    minutes = (total_ms % 3600000) // 60000
+    secs = (total_ms % 60000) // 1000
+    millis = total_ms % 1000
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def segments_to_srt(segments):
+    lines = []
+    index = 1
+    for seg in segments or []:
+        start = float(seg.get("start", 0.0))
+        end = float(seg.get("end", start))
+        if end < start:
+            end = start
+        text = (seg.get("text") or "").strip()
+        text = strip_repetitions(text)
+        if not text:
+            continue
+        lines.append(str(index))
+        lines.append(f"{format_srt_timestamp(start)} --> {format_srt_timestamp(end)}")
+        lines.append(text)
+        lines.append("")
+        index += 1
+    return "\n".join(lines).strip()
+
+
+def write_pdf(path, text):
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas
+
+    width, height = LETTER
+    margin = 0.75 * inch
+    max_chars = 100
+    c = canvas.Canvas(path, pagesize=LETTER)
+    text_object = c.beginText(margin, height - margin)
+
+    paragraphs = text.splitlines() or [""]
+    for paragraph in paragraphs:
+        wrapped = textwrap.wrap(paragraph, width=max_chars) or [""]
+        for line in wrapped:
+            if text_object.getY() <= margin:
+                c.drawText(text_object)
+                c.showPage()
+                text_object = c.beginText(margin, height - margin)
+            text_object.textLine(line)
+        if text_object.getY() <= margin:
+            c.drawText(text_object)
+            c.showPage()
+            text_object = c.beginText(margin, height - margin)
+        text_object.textLine("")
+
+    c.drawText(text_object)
+    c.save()
+
+
+def export_transcript(export_format, text, segments, audio_path):
+    if not text:
+        return None, "No transcription to export."
+
+    export_format = (export_format or "txt").lower()
+    base_name = os.path.splitext(os.path.basename(audio_path or "transcription"))[0]
+
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=f".{export_format}",
+        prefix=f"{base_name}_",
+    ) as tmp:
+        path = tmp.name
+
+    if export_format == "txt":
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+    elif export_format == "srt":
+        srt_text = segments_to_srt(segments)
+        if not srt_text:
+            return None, "No segments available for SRT export."
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(srt_text)
+    elif export_format == "docx":
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph(text)
+        doc.save(path)
+    elif export_format == "pdf":
+        write_pdf(path, text)
+    else:
+        return None, "Unsupported export format."
+
+    return path, f"Exported {export_format.upper()}."
+
+
 class ModelManager:
     def __init__(self):
         self._lock = threading.Lock()
@@ -240,11 +340,17 @@ def on_model_change(selected, current, progress=gr.Progress()):
     return gr.update(value=selected), selected, message
 
 
-def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
+def transcribe(
+    file_path,
+    use_preprocess,
+    disable_vad,
+    model_name,
+    progress=gr.Progress(),
+):
     if not file_path:
-        return "", "Error: No audio file selected."
+        return "", "Error: No audio file selected.", [], ""
     if not model_name:
-        return "", "Error: No model selected."
+        return "", "Error: No model selected.", [], file_path or ""
 
     start_time = time.time()
 
@@ -252,7 +358,7 @@ def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
         progress(0.05, desc="Loading audio")
         audio, sr = load_audio(file_path)
         if audio.size == 0:
-            return "", "Error: Audio file is empty."
+            return "", "Error: Audio file is empty.", [], file_path
 
         duration = float(len(audio)) / float(sr)
 
@@ -264,19 +370,7 @@ def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
         model, _ = MODEL_MANAGER.load(model_name, progress=progress)
 
         progress(0.6, desc="Transcribing")
-        segments, _ = model.transcribe(
-            audio,
-            language="tr",
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=VAD_PARAMS,
-            condition_on_previous_text=False,
-            temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
-            repetition_penalty=1.2,
-        )
-        segments = list(segments)
-        last_end = segments[-1].end if segments else 0.0
-        if last_end < max(0.0, duration - 0.6):
+        if disable_vad:
             segments, _ = model.transcribe(
                 audio,
                 language="tr",
@@ -287,16 +381,50 @@ def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
                 repetition_penalty=1.2,
             )
             segments = list(segments)
+        else:
+            segments, _ = model.transcribe(
+                audio,
+                language="tr",
+                beam_size=5,
+                vad_filter=True,
+                vad_parameters=VAD_PARAMS,
+                condition_on_previous_text=False,
+                temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                repetition_penalty=1.2,
+            )
+            segments = list(segments)
+            last_end = segments[-1].end if segments else 0.0
+            if last_end < max(0.0, duration - 0.6):
+                progress(0.7, desc="Retrying without VAD")
+                segments, _ = model.transcribe(
+                    audio,
+                    language="tr",
+                    beam_size=5,
+                    vad_filter=False,
+                    condition_on_previous_text=False,
+                    temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                    repetition_penalty=1.2,
+                )
+                segments = list(segments)
 
         text = "".join(segment.text for segment in segments).strip()
         progress(0.9, desc="Post-processing")
         text = strip_repetitions(text)
 
+        segment_data = [
+            {
+                "start": float(segment.start),
+                "end": float(segment.end),
+                "text": segment.text,
+            }
+            for segment in segments
+        ]
+
         elapsed = time.time() - start_time
         stats = format_stats(elapsed, duration, model_name)
-        return text, stats
+        return text, stats, segment_data, file_path
     except Exception as exc:
-        return "", f"Error: {exc}"
+        return "", f"Error: {exc}", [], file_path or ""
 
 
 def build_ui():
@@ -329,6 +457,10 @@ def build_ui():
                     label="Enable noise reduction",
                     value=True,
                 )
+                disable_vad = gr.Checkbox(
+                    label="Disable VAD (advanced)",
+                    value=False,
+                )
                 model_select = gr.Dropdown(
                     label="Model",
                     choices=KNOWN_MODELS,
@@ -347,8 +479,19 @@ def build_ui():
                     show_copy_button=True,
                 )
                 stats = gr.Markdown()
+                with gr.Row():
+                    export_format = gr.Dropdown(
+                        label="Export format",
+                        choices=["txt", "srt", "pdf", "docx"],
+                        value="txt",
+                    )
+                    export_btn = gr.Button("Export")
+                export_file = gr.File(label="Exported file")
+                export_status = gr.Markdown()
 
         current_model = gr.State(value=default_model)
+        segments_state = gr.State(value=[])
+        audio_state = gr.State(value="")
 
         model_select.change(
             on_model_change,
@@ -359,8 +502,15 @@ def build_ui():
 
         transcribe_btn.click(
             transcribe,
-            inputs=[audio_file, preprocess, model_select],
-            outputs=[output, stats],
+            inputs=[audio_file, preprocess, disable_vad, model_select],
+            outputs=[output, stats, segments_state, audio_state],
+            concurrency_limit=1,
+        )
+
+        export_btn.click(
+            export_transcript,
+            inputs=[export_format, output, segments_state, audio_state],
+            outputs=[export_file, export_status],
             concurrency_limit=1,
         )
 

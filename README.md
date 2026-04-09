@@ -22,6 +22,10 @@ Offline Turkish audio transcription for Windows 10/11. The app runs locally in a
 
 The UI only loads models present in `models/`. Default is `large-v3-turbo` when available.
 
+## Export
+
+Transcriptions can be exported as TXT, SRT, PDF, or DOCX from the UI.
+
 ## Notes
 
 - No internet is required after the first run.
