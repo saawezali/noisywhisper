@@ -15,6 +15,20 @@ import numpy as np
 import soundfile as sf
 from faster_whisper import WhisperModel
 
+try:
+    from gradio_client import utils as gr_client_utils
+
+    _orig_schema_to_type = gr_client_utils._json_schema_to_python_type
+
+    def _patched_schema_to_type(schema, defs=None):
+        if isinstance(schema, bool):
+            return "Any"
+        return _orig_schema_to_type(schema, defs)
+
+    gr_client_utils._json_schema_to_python_type = _patched_schema_to_type
+except Exception:
+    pass
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(ROOT, "models")
 FFMPEG_EXE = os.path.join(ROOT, "ffmpeg.exe")
