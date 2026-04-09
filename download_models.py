@@ -6,7 +6,7 @@ from huggingface_hub import snapshot_download
 
 MODEL_REPOS = {
     "medium": "Systran/faster-whisper-medium",
-    "large-v3-turbo": "Systran/faster-whisper-large-v3-turbo",
+    "large-v3-turbo": "deepdml/faster-whisper-large-v3-turbo-ct2",
     "large-v3": "Systran/faster-whisper-large-v3",
 }
 
