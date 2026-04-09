@@ -26,6 +26,9 @@ The UI only loads models present in `models/`. Default is `large-v3-turbo` when 
 
 Transcriptions can be exported as TXT, SRT, PDF, or DOCX from the UI.
 
+PDF export uses `fonts/DejaVuSans.ttf` to render Turkish characters. The font
+license is included at `fonts/DejaVuSans.LICENSE.txt`.
+
 ## Notes
 
 - No internet is required after the first run.

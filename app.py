@@ -34,6 +34,9 @@ except Exception:
 ROOT = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(ROOT, "models")
 FFMPEG_EXE = os.path.join(ROOT, "ffmpeg.exe")
+FONTS_DIR = os.path.join(ROOT, "fonts")
+PDF_FONT_NAME = "DejaVuSans"
+PDF_FONT_FILE = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
 
 if os.path.exists(FFMPEG_EXE):
     os.environ["PATH"] = ROOT + os.pathsep + os.environ.get("PATH", "")
@@ -164,6 +167,8 @@ def segments_to_srt(segments):
 def write_pdf(path, text):
     from reportlab.lib.pagesizes import LETTER
     from reportlab.lib.units import inch
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas
 
     width, height = LETTER
@@ -171,6 +176,16 @@ def write_pdf(path, text):
     max_chars = 100
     c = canvas.Canvas(path, pagesize=LETTER)
     text_object = c.beginText(margin, height - margin)
+
+    font_name = "Helvetica"
+    if os.path.isfile(PDF_FONT_FILE):
+        try:
+            pdfmetrics.registerFont(TTFont(PDF_FONT_NAME, PDF_FONT_FILE))
+            font_name = PDF_FONT_NAME
+        except Exception:
+            font_name = "Helvetica"
+
+    text_object.setFont(font_name, 11)
 
     paragraphs = text.splitlines() or [""]
     for paragraph in paragraphs:
