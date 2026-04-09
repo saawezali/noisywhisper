@@ -1,4 +1,5 @@
 import gc
+import json
 import os
 import re
 import threading
@@ -178,9 +179,35 @@ def resolve_default_model():
     available = available_models()
     if "large-v3-turbo" in available:
         return "large-v3-turbo"
-    if available:
-        return available[0]
-    return "large-v3-turbo"
+    return available[0] if available else None
+
+
+def model_select_js(missing):
+    if not missing:
+        return ""
+    tooltip = "Model not bundled. Contact your distributor."
+    missing_json = json.dumps(missing)
+    tooltip_json = json.dumps(tooltip)
+    return (
+        "() => {\n"
+        f"  const missing = {missing_json};\n"
+        f"  const tooltip = {tooltip_json};\n"
+        "  const apply = () => {\n"
+        "    const root = document.getElementById('model-select');\n"
+        "    if (!root) return;\n"
+        "    const select = root.querySelector('select');\n"
+        "    if (!select) return;\n"
+        "    Array.from(select.options).forEach((opt) => {\n"
+        "      if (missing.includes(opt.value)) {\n"
+        "        opt.disabled = true;\n"
+        "        opt.title = tooltip;\n"
+        "      }\n"
+        "    });\n"
+        "  };\n"
+        "  apply();\n"
+        "  setTimeout(apply, 300);\n"
+        "};"
+    )
 
 
 def on_model_change(selected, current, progress=gr.Progress()):
@@ -201,6 +228,8 @@ def on_model_change(selected, current, progress=gr.Progress()):
 def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
     if not file_path:
         return "", "Error: No audio file selected."
+    if not model_name:
+        return "", "Error: No model selected."
 
     start_time = time.time()
 
@@ -243,8 +272,10 @@ def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
 
 def build_ui():
     default_model = resolve_default_model()
+    missing = missing_models()
+    js = model_select_js(missing)
 
-    with gr.Blocks(title="Noisy Whisper") as demo:
+    with gr.Blocks(title="Noisy Whisper", js=js) as demo:
         gr.Markdown("# Noisy Whisper")
         gr.Markdown("Offline Turkish audio transcription")
 
@@ -273,6 +304,7 @@ def build_ui():
                     label="Model",
                     choices=KNOWN_MODELS,
                     value=default_model,
+                    elem_id="model-select",
                 )
                 model_note = gr.Markdown(value=model_availability_note())
                 model_status = gr.Markdown()
