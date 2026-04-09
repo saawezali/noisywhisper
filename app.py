@@ -1,11 +1,16 @@
+import base64
 import gc
+import io
 import json
+import math
 import os
 import re
+import struct
 import threading
 import time
 import tempfile
 import textwrap
+import wave
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "0")
 
@@ -131,6 +136,40 @@ def strip_repetitions(text):
         previous = text
         text = REPEAT_RE.sub(r"\1", text)
     return text
+
+
+def make_beep_data_uri():
+    sample_rate = 16000
+    duration = 0.2
+    frequency = 880.0
+    volume = 0.2
+    sample_count = int(sample_rate * duration)
+    frames = bytearray()
+
+    for i in range(sample_count):
+        value = volume * math.sin(2 * math.pi * frequency * (i / sample_rate))
+        frames.extend(struct.pack("<h", int(value * 32767)))
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(frames)
+
+    data = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:audio/wav;base64,{data}"
+
+
+BEEP_DATA_URI = make_beep_data_uri()
+
+
+def completion_sound_html():
+    stamp = int(time.time() * 1000)
+    return (
+        f"<audio autoplay='true' src='{BEEP_DATA_URI}'></audio>"
+        f"<span data-ts='{stamp}'></span>"
+    )
 
 
 def format_srt_timestamp(seconds):
@@ -312,7 +351,7 @@ def resolve_default_model():
     return available[0] if available else None
 
 
-def model_select_js(missing):
+def build_client_js(missing):
     if not missing:
         return ""
     tooltip = "Model not bundled. Contact your distributor."
@@ -363,9 +402,9 @@ def transcribe(
     progress=gr.Progress(),
 ):
     if not file_path:
-        return "", "Error: No audio file selected.", [], ""
+        return "", "Error: No audio file selected.", [], "", ""
     if not model_name:
-        return "", "Error: No model selected.", [], file_path or ""
+        return "", "Error: No model selected.", [], file_path or "", ""
 
     start_time = time.time()
 
@@ -373,7 +412,7 @@ def transcribe(
         progress(0.05, desc="Loading audio")
         audio, sr = load_audio(file_path)
         if audio.size == 0:
-            return "", "Error: Audio file is empty.", [], file_path
+            return "", "Error: Audio file is empty.", [], file_path, ""
 
         duration = float(len(audio)) / float(sr)
 
@@ -437,15 +476,16 @@ def transcribe(
 
         elapsed = time.time() - start_time
         stats = format_stats(elapsed, duration, model_name)
-        return text, stats, segment_data, file_path
+        sound_html = completion_sound_html()
+        return text, stats, segment_data, file_path, sound_html
     except Exception as exc:
-        return "", f"Error: {exc}", [], file_path or ""
+        return "", f"Error: {exc}", [], file_path or "", ""
 
 
 def build_ui():
     default_model = resolve_default_model()
     missing = missing_models()
-    js = model_select_js(missing)
+    js = build_client_js(missing)
 
     with gr.Blocks(title="Noisy Whisper", js=js) as demo:
         gr.Markdown("# Noisy Whisper")
@@ -503,6 +543,7 @@ def build_ui():
                     export_btn = gr.Button("Export")
                 export_file = gr.File(label="Exported file")
                 export_status = gr.Markdown()
+                completion_sound = gr.HTML(visible=False)
 
         current_model = gr.State(value=default_model)
         segments_state = gr.State(value=[])
@@ -518,7 +559,13 @@ def build_ui():
         transcribe_btn.click(
             transcribe,
             inputs=[audio_file, preprocess, disable_vad, model_select],
-            outputs=[output, stats, segments_state, audio_state],
+            outputs=[
+                output,
+                stats,
+                segments_state,
+                audio_state,
+                completion_sound,
+            ],
             concurrency_limit=1,
         )
 

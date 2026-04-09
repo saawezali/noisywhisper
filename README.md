@@ -34,3 +34,4 @@ license is included at `fonts/DejaVuSans.LICENSE.txt`.
 - No internet is required after the first run.
 - Audio is processed locally and is not uploaded anywhere.
 - If a model is missing, the UI will warn to contact the distributor.
+- A short sound plays when transcription completes.
