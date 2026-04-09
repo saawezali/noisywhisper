@@ -226,17 +226,17 @@ def model_select_js(missing):
 
 def on_model_change(selected, current, progress=gr.Progress()):
     if not selected:
-        return gr.Dropdown.update(), current, "Select a model to load."
+        return gr.update(), current, "Select a model to load."
 
     if not model_is_present(selected):
         message = f"Model '{selected}' not bundled. Contact your distributor."
         if current:
-            return gr.Dropdown.update(value=current), current, message
-        return gr.Dropdown.update(value=selected), current, message
+            return gr.update(value=current), current, message
+        return gr.update(value=selected), current, message
 
     MODEL_MANAGER.load(selected, progress=progress)
     message = f"Loaded '{selected}' on {DEVICE.upper()} ({COMPUTE_TYPE})."
-    return gr.Dropdown.update(value=selected), selected, message
+    return gr.update(value=selected), selected, message
 
 
 def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
