@@ -37,6 +37,7 @@ if os.path.exists(FFMPEG_EXE):
     os.environ["PATH"] = ROOT + os.pathsep + os.environ.get("PATH", "")
 
 KNOWN_MODELS = ["medium", "large-v3-turbo", "large-v3"]
+VAD_PARAMS = {"threshold": 0.35}
 
 
 def detect_device():
@@ -268,6 +269,7 @@ def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
             language="tr",
             beam_size=5,
             vad_filter=True,
+            vad_parameters=VAD_PARAMS,
             condition_on_previous_text=False,
             temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
             repetition_penalty=1.2,
