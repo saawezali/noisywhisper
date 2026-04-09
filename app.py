@@ -5,6 +5,8 @@ import re
 import threading
 import time
 
+os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "0")
+
 import ctranslate2
 import gradio as gr
 import librosa
@@ -19,8 +21,6 @@ FFMPEG_EXE = os.path.join(ROOT, "ffmpeg.exe")
 
 if os.path.exists(FFMPEG_EXE):
     os.environ["PATH"] = ROOT + os.pathsep + os.environ.get("PATH", "")
-
-os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "0")
 
 KNOWN_MODELS = ["medium", "large-v3-turbo", "large-v3"]
 
@@ -340,7 +340,12 @@ def build_ui():
 def main():
     demo = build_ui()
     demo.queue(concurrency_count=1, max_size=8)
-    demo.launch(server_name="127.0.0.1", server_port=7860, show_error=True)
+    demo.launch(
+        server_name="127.0.0.1",
+        server_port=7860,
+        show_error=True,
+        share=False,
+    )
 
 
 if __name__ == "__main__":
