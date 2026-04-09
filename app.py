@@ -332,6 +332,7 @@ def build_ui():
             transcribe,
             inputs=[audio_file, preprocess, model_select],
             outputs=[output, stats],
+            concurrency_limit=1,
         )
 
     return demo
@@ -339,7 +340,7 @@ def build_ui():
 
 def main():
     demo = build_ui()
-    demo.queue(concurrency_count=1, max_size=8)
+    demo.queue(max_size=8)
     demo.launch(
         server_name="127.0.0.1",
         server_port=7860,
