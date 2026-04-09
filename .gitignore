@@ -11,3 +11,6 @@ __pycache__/
 *.zip
 *.7z
 ffmpeg.exe
+noisy_whisper_spec_v2.md
+*.mp3
+python-*.exe
