@@ -274,6 +274,19 @@ def transcribe(file_path, use_preprocess, model_name, progress=gr.Progress()):
             temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
             repetition_penalty=1.2,
         )
+        segments = list(segments)
+        last_end = segments[-1].end if segments else 0.0
+        if last_end < max(0.0, duration - 0.6):
+            segments, _ = model.transcribe(
+                audio,
+                language="tr",
+                beam_size=5,
+                vad_filter=False,
+                condition_on_previous_text=False,
+                temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                repetition_penalty=1.2,
+            )
+            segments = list(segments)
 
         text = "".join(segment.text for segment in segments).strip()
         progress(0.9, desc="Post-processing")
